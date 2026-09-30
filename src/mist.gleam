@@ -536,7 +536,18 @@ pub fn start(
   let listener_name = process.new_name("glisten_listener")
   let factory_name = process.new_name("mist_factory_supervisor")
 
+  // The SSE factory owns upgraded streams before a listener can admit them.
+  // Reverse shutdown stops the listener and its connection handlers first,
+  // retaining stream custody until admission has ended.
   supervisor.new(strategy: supervisor.OneForOne)
+  |> supervisor.add(
+    supervision.supervisor(fn() {
+      factory.worker_child(fn(start) { start() })
+      |> factory.named(factory_name)
+      |> factory.restart_strategy(supervision.Temporary)
+      |> factory.start()
+    }),
+  )
   |> supervisor.add(
     supervision.supervisor(fn() {
       fn(req) { convert_body_types(builder.handler(req)) }
@@ -569,14 +580,6 @@ pub fn start(
         builder.after_start(info.port, scheme, ip_address)
         server
       })
-    }),
-  )
-  |> supervisor.add(
-    supervision.supervisor(fn() {
-      factory.worker_child(fn(start) { start() })
-      |> factory.named(factory_name)
-      |> factory.restart_strategy(supervision.Temporary)
-      |> factory.start()
     }),
   )
   |> supervisor.start()
