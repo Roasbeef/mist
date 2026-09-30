@@ -89,9 +89,13 @@ pub fn it_supports_patch_requests_test() {
 }
 
 pub fn it_rejects_large_requests_test() {
+  // The server refuses the declared size before reading the body. Waiting for
+  // 100 Continue keeps the client from writing unread bytes while that refusal
+  // closes the socket, which otherwise races delivery of the 413 response.
   let req =
     string.repeat("a", 4_000_001)
     |> make_request("/", _)
+    |> request.prepend_header("expect", "100-continue")
 
   let resp = scaffold.with_server(8888, scaffold.default_handler, req)
 
