@@ -101,6 +101,14 @@ pub fn parse_headers(
     Ok(BinaryData(HttpHeader(_, _field, field, value), rest)) -> {
       let field = from_header(field)
       let assert Ok(value) = bit_array.to_string(value)
+
+      // Framing fields must retain their identity until validation. Replacing
+      // either field in the dictionary would hide repeated or conflicting body
+      // lengths before the application can apply its own input bound.
+      use Nil <- result.try(case conflicting_framing(headers, field) {
+        True -> Error(InvalidBody)
+        False -> Ok(Nil)
+      })
       headers
       |> dict.insert(field, value)
       |> parse_headers(rest, socket, transport, _)
@@ -117,6 +125,15 @@ pub fn parse_headers(
       parse_headers(next, socket, transport, headers)
     }
     _other -> Error(UnknownHeader)
+  }
+}
+
+fn conflicting_framing(headers: Dict(String, String), field: String) -> Bool {
+  case field {
+    "content-length" | "transfer-encoding" ->
+      dict.has_key(headers, "content-length")
+      || dict.has_key(headers, "transfer-encoding")
+    _ -> False
   }
 }
 

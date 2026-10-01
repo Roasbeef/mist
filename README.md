@@ -5,6 +5,14 @@
 
 ## A glistening Gleam web server.
 
+### HTTP/1 request framing
+
+Repeated `Content-Length` or `Transfer-Encoding` fields are rejected before the
+application handler runs, including identical repetitions and case variants.
+A request carrying both fields is also rejected, in either order. These cases
+close the connection at the parser boundary; they do not produce an application
+response. Applications still own their body-size limits and supported encodings.
+
 ### Bounded WebSocket connections
 
 Use `mist.websocket_with_options` when clients must not control how much
